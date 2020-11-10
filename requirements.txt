@@ -1,0 +1,6 @@
+jupyter
+astropy
+dask
+toolz
+numpy
+matplotlib
