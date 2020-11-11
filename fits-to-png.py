@@ -127,10 +127,10 @@ if __name__ == '__main__':
     ap.add_argument('-d', '--debug', default=False, action='store_true', help='Turn on debugging messages')
     ap.add_argument('-t', '--num_threads', type=int, help=f'Number of threads to use. Default:{DEF_NUM_THREADS}',
                     default=DEF_NUM_THREADS)
-    ap.add_argument('-o', '--overwrite', default=False, action='store_true',
+    ap.add_argument('-ow', '--overwrite', default=False, action='store_true',
                     help='Overwrite existing data locally with new files.')
-    ap.add_argument('-input_dir', help='Directory/path to input data from')
-    ap.add_argument('-output_dir', help='Directory/path to output processed data to')
+    ap.add_argument('-i', '--input_dir', help='Directory/path to input data from')
+    ap.add_argument('-o', '--output_dir', help='Directory/path to output processed data to')
 
     args = ap.parse_args()
 
