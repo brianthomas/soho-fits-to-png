@@ -1,6 +1,10 @@
-jupyter
 astropy
 dask
-toolz
-numpy
 matplotlib
+numpy
+toolz
+# for notebook
+jupyter
+# for radial gradient filter
+#sunpy
+#sunkit-image
