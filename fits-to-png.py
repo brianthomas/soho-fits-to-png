@@ -106,6 +106,7 @@ def process_files(files_to_process:list, output_path:str, num_of_threads:int=DEF
     cnt = 0
     dask_processing_list = []
     for f in files_to_process:
+        print (f" File to process:{f} out:{output_path}")
         dask_processing_list.append(delayed(process_file)(output_path, f))
 
         if file_limit != None and cnt >= file_limit:
@@ -152,7 +153,7 @@ if __name__ == '__main__':
     found_files_to_process = find_files(input_dir, output_dir)
     print (found_files_to_process)
     for output_path in found_files_to_process.keys():
-        process_files(found_files_to_process, output_path, args.num_threads)
+        process_files(found_files_to_process[output_path], output_path, args.num_threads)
 
     LOG.info(f"\nTotal Process time: %8.2f sec" % (time.time() - start_time))
 

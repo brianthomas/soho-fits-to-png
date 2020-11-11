@@ -6,5 +6,5 @@ toolz
 # for notebook
 jupyter
 # for radial gradient filter
-#sunpy
-#sunkit-image
+sunpy
+sunkit-image
