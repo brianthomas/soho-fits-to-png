@@ -27,6 +27,11 @@ def get_numpy_data(file_name:str):
         LOG.debug(fits.info(image_file))
 
         image_data = fits.getdata(image_file, ext=0,)
+
+        # deal with zeros and negative values in data
+        zero_threshold_indices = image_data <= 0.
+        image_data[zero_threshold_indices] = 1.e-20
+
         LOG.debug("Image Shape : ", image_data.shape)
 
     except :
@@ -104,6 +109,7 @@ def find_files(dirname: str, base_output_dir:os.PathLike, extension:str="fits") 
     return files_to_process
 
 
+
 def process_file(output_path:str, file:str, overwrite:bool=False):
     """
     This function will be run in parallel ...
@@ -114,6 +120,7 @@ def process_file(output_path:str, file:str, overwrite:bool=False):
     success = create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite)
 
     return 1 if success else 0
+
 
 def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, overwrite:bool=False, file_limit:int=None)->list:
     """
