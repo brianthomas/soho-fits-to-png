@@ -1,5 +1,6 @@
 astropy
 dask
+distributed
 matplotlib
 numpy
 toolz

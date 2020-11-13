@@ -1,16 +1,20 @@
-import matplotlib.pyplot as plt
-import numpy as np
-#from PIL import Image
 
-# Astropy library - pip install astropy worked for me with and Open-CE build
 from astropy.utils.data import get_pkg_data_filename
 from astropy.io import fits
 
+from dask import delayed
+from dask.distributed import Client
+
+from PIL import Image
+
 import logging
+import matplotlib.pyplot as plt
+import numpy as np
+
 import os
 from pathlib import Path
 
-DEF_NUM_THREADS = 8
+DEF_NUM_THREADS = 4
 
 LOG = logging.getLogger('soho-fits-to-png')
 logging.basicConfig(level=logging.INFO)
@@ -18,31 +22,47 @@ logging.basicConfig(level=logging.INFO)
 # returns numpy data array
 def get_numpy_data(file_name:str):
     try :
+
         image_file = get_pkg_data_filename(file_name)
         LOG.debug(fits.info(image_file))
+
         image_data = fits.getdata(image_file, ext=0,)
         LOG.debug("Image Shape : ", image_data.shape)
+
     except :
+
         LOG.debug("Error opening file {}".format(file_name))
         image_data = None
 
     return image_data
 
-def create_png(image_data:np.array, outdir:str="/tmp", fileout:str="test.png") :
+def create_png(image_data:np.array, outdir:str="/tmp", fileout:str="test.png", overwrite:bool=False)->bool:
+    """ Create png. Returns True if it thinks its successful.
+    """
+
+    LOG.debug("writing file {} to {}".format(fileout, outdir))
+    outfile = os.path.join(outdir, fileout)
 
     if(image_data is not None) :
 
-        LOG.debug("writing file {} to {}".format(fileout, outdir))
-        outfile = os.path.join(outdir, fileout)
+        # make the output directory if its not already there
+        if not os.path.exists(outdir):
+            # it is always OK to create an empty target directory if none exists
+            os.makedirs(outdir, exist_ok=True)
+                
+        if os.path.exists(outfile) and not overwrite:
+            LOG.debug(f"Can't write {outfile} -- file already exists.") 
+            return False
 
-        plt.figure()
+        #plt.figure()
         plt.imsave(outfile, image_data, cmap='magma')
 
     else :
 
-        msg = "Can't write PNG. Empty array passed, bad pipeline configuration?"
-        LOG.fatal(msg)
-        raise Exception(msg)
+        LOG.fatal(f"Can't write {outfile}. Empty array passed, bad pipeline configuration?") 
+        return False
+
+    return True
 
 
 def check_directory(dirname: str) -> bool:
@@ -84,39 +104,35 @@ def find_files(dirname: str, base_output_dir:os.PathLike, extension:str="fits") 
     return files_to_process
 
 
-
-from dask import delayed
-def process_file(output_path, file):
+def process_file(output_path:str, file:str, overwrite:bool=False):
     """
     This function will be run in parallel ...
     """
-    rv = 0
     img_data = get_numpy_data(file)
-    if (img_data is not None):
-        out_filename = create_output_filename(file)
-        create_png(img_data, outdir=output_path, fileout=out_filename)
-        rv = 1
+    out_filename = create_output_filename(file)
 
-    return rv
+    success = create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite)
 
-def process_files(files_to_process:list, output_path:str, num_of_threads:int=DEF_NUM_THREADS, file_limit:int=None):
+    return 1 if success else 0
+
+def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, overwrite:bool=False, file_limit:int=None)->list:
     """
-    Process a list of files.
+    Create a list of jobs to process fits files to png.
     """
+
     cnt = 0
     dask_processing_list = []
-    for f in files_to_process:
-        print (f" File to process:{f} out:{output_path}")
-        dask_processing_list.append(delayed(process_file)(output_path, f))
+    for output_path, flist in files_to_process.items():
+        for f in flist:
+            if file_limit != None and cnt >= file_limit:
+                break
 
-        if file_limit != None and cnt >= file_limit:
-            break
+            LOG.debug(f" File to process:{f} out:{output_path}")
+            dask_processing_list.append(delayed(process_file)(output_path, f, overwrite))
 
         cnt += 1
 
-    # trigger the jobs
-    delayed_processing_sum = sum(dask_processing_list)
-    delayed_processing_sum.compute()
+    return dask_processing_list
 
 
 if __name__ == '__main__':
@@ -151,9 +167,16 @@ if __name__ == '__main__':
 
     # find files to process in input dir
     found_files_to_process = find_files(input_dir, output_dir)
-    print (found_files_to_process)
-    for output_path in found_files_to_process.keys():
-        process_files(found_files_to_process[output_path], output_path, args.num_threads)
+    LOG.debug(f"files to process: {found_files_to_process}")
+
+    #client = Client(threads_per_worker=num_of_threads, n_workers=1) 
+    #print(client)
+
+    # assemble the dask jobs
+    process_list = create_jobs (found_files_to_process, args.num_threads, args.overwrite)
+    if len(process_list) > 0:
+        process_list_sum = sum(process_list)
+        process_list_sum.compute()
 
     LOG.info(f"\nTotal Process time: %8.2f sec" % (time.time() - start_time))
 
