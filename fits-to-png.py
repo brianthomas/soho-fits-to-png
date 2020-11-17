@@ -24,7 +24,7 @@ def get_numpy_data(file_name:str):
     try :
 
         image_file = get_pkg_data_filename(file_name)
-        LOG.debug(fits.info(image_file))
+        #LOG.debug(fits.info(image_file))
 
         image_data = fits.getdata(image_file, ext=0,)
 
@@ -32,6 +32,16 @@ def get_numpy_data(file_name:str):
         zero_threshold_indices = image_data <= 0.
         image_data[zero_threshold_indices] = 1.e-20
 
+        # take the log
+        image_data = np.log(image_data)
+
+        # now normalize
+        # we need to take care to multiply by -1. because log scale
+        # will go negative
+        image_data *= -1.
+        image_data *= (1./image_data.max())
+
+        LOG.debug(f" image new min:%s max:%s" % (image_data.min(), image_data.max()))
         LOG.debug("Image Shape : ", image_data.shape)
 
     except :
@@ -59,8 +69,7 @@ def create_png(image_data:np.array, outdir:str="/tmp", fileout:str="test.png", o
             LOG.debug(f"Can't write {outfile} -- file already exists.") 
             return False
 
-        #plt.figure()
-        plt.imsave(outfile, image_data, cmap='magma')
+        plt.imsave(outfile, image_data, cmap='magma', dpi=100)
 
     else :
 
@@ -110,12 +119,21 @@ def find_files(dirname: str, base_output_dir:os.PathLike, extension:str="fits") 
 
 
 
-def process_file(output_path:str, file:str, overwrite:bool=False):
+def process_files(output_path:str, files:list, overwrite:bool=False):
     """
+    Process files to extract images and create PNG with each file image
+    in a layer.
+
     This function will be run in parallel ...
     """
-    img_data = get_numpy_data(file)
-    out_filename = create_output_filename(file)
+
+    # use the first difference image as the output filename
+    out_filename = create_output_filename(files[0])
+    img_data = np.zeros((1024,1024,3))
+    
+    img_data[:,:,0] = get_numpy_data(files[0])
+    img_data[:,:,1] = get_numpy_data(files[1])
+    img_data[:,:,2] = get_numpy_data(files[2])
 
     success = create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite)
 
@@ -130,12 +148,13 @@ def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, over
     cnt = 0
     dask_processing_list = []
     for output_path, flist in files_to_process.items():
-        for f in flist:
-            if file_limit != None and cnt >= file_limit:
-                break
 
-            LOG.debug(f" File to process:{f} out:{output_path}")
-            dask_processing_list.append(delayed(process_file)(output_path, f, overwrite))
+        if len(flist) >= 3:
+            # process the first 3 files in list
+            LOG.debug(f" Files to process:{flist[:3]} out:{output_path}")
+            dask_processing_list.append(delayed(process_files)(output_path, flist[:3], overwrite))
+        else:
+            LOG.info(f" Skipping...too few files in %s" % os.path.dirname(flist[0]))
 
         cnt += 1
 
