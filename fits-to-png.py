@@ -128,16 +128,16 @@ def process_files(output_path:str, files:list, overwrite:bool=False):
     """
 
     # use the first difference image as the output filename
-    out_filename = create_output_filename(files[0])
-    img_data = np.zeros((1024,1024,3))
     
-    img_data[:,:,0] = get_numpy_data(files[0])
-    img_data[:,:,1] = get_numpy_data(files[1])
-    img_data[:,:,2] = get_numpy_data(files[2])
+    total_success = True
+    for f in files:
+        out_filename = create_output_filename(f)
+        img_data = get_numpy_data(f)
+        if not create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite):
+            # one of the files (or more) failed, mark 'total success' as false
+            total_success = False 
 
-    success = create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite)
-
-    return 1 if success else 0
+    return 1 if total_success else 0
 
 
 def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, overwrite:bool=False, file_limit:int=None)->list:
@@ -145,18 +145,12 @@ def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, over
     Create a list of jobs to process fits files to png.
     """
 
-    cnt = 0
     dask_processing_list = []
     for output_path, flist in files_to_process.items():
 
-        if len(flist) >= 3:
-            # process the first 3 files in list
-            LOG.debug(f" Files to process:{flist[:3]} out:{output_path}")
-            dask_processing_list.append(delayed(process_files)(output_path, flist[:3], overwrite))
-        else:
-            LOG.info(f" Skipping...too few files in %s" % os.path.dirname(flist[0]))
-
-        cnt += 1
+        # process the first 3 files in list
+        LOG.debug(f" Files to process:{flist} out:{output_path}")
+        dask_processing_list.append(delayed(process_files)(output_path, flist, overwrite))
 
     return dask_processing_list
 
