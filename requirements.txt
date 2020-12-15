@@ -4,8 +4,9 @@ distributed
 matplotlib
 numpy
 toolz
+
 # for notebook
-jupyter
+#jupyter
 # for radial gradient filter
-sunpy
-sunkit-image
+#sunpy
+#sunkit-image

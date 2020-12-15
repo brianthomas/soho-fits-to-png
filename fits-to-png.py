@@ -24,7 +24,7 @@ def get_numpy_data(file_name:str):
     try :
 
         image_file = get_pkg_data_filename(file_name)
-        #LOG.debug(fits.info(image_file))
+        LOG.debug(fits.info(image_file))
 
         image_data = fits.getdata(image_file, ext=0,)
 
@@ -66,14 +66,14 @@ def create_png(image_data:np.array, outdir:str="/tmp", fileout:str="test.png", o
             os.makedirs(outdir, exist_ok=True)
                 
         if os.path.exists(outfile) and not overwrite:
-            LOG.debug(f"Can't write {outfile} -- file already exists.") 
+            LOG.debug(f"Can't write outfile:{outfile} -- file already exists.") 
             return False
 
         plt.imsave(outfile, image_data, cmap='magma', dpi=100)
 
     else :
 
-        LOG.fatal(f"Can't write {outfile}. Empty array passed, bad pipeline configuration?") 
+        LOG.fatal(f"Can't write outfile:{outfile}. Empty array passed, bad pipeline configuration?") 
         return False
 
     return True
@@ -128,11 +128,10 @@ def process_files(output_path:str, files:list, overwrite:bool=False):
     """
 
     # use the first difference image as the output filename
-    
     total_success = True
     for f in files:
-        out_filename = create_output_filename(f)
         img_data = get_numpy_data(f)
+        out_filename = create_output_filename(f)
         if not create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite):
             # one of the files (or more) failed, mark 'total success' as false
             total_success = False 
