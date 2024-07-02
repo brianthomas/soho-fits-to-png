@@ -20,7 +20,7 @@ LOG = logging.getLogger('soho-fits-to-png')
 logging.basicConfig(level=logging.INFO)
 
 # returns numpy data array
-def get_numpy_data(file_name:str):
+def get_numpy_data(file_name:str, take_log:bool=False):
     try :
 
         image_file = get_pkg_data_filename(file_name)
@@ -28,21 +28,23 @@ def get_numpy_data(file_name:str):
 
         image_data = fits.getdata(image_file, ext=0,)
 
-        # deal with zeros and negative values in data
-        zero_threshold_indices = image_data <= 0.
-        image_data[zero_threshold_indices] = 1.e-20
-
         # take the log
-        image_data = np.log(image_data)
+        if take_log:
+            # deal with zeros and negative values in data
+            zero_threshold_indices = image_data <= 0.
 
-        # now normalize
-        # we need to take care to multiply by -1. because log scale
-        # will go negative
-        image_data *= -1.
-        image_data *= (1./image_data.max())
+            image_data[zero_threshold_indices] = 1.e-20
+
+            image_data = np.log(image_data)
+
+            # now normalize
+            # we need to take care to multiply by -1. because log scale
+            # will go negative
+            image_data *= -1.
+            image_data *= (1./image_data.max())
 
         LOG.debug(f" image new min:%s max:%s" % (image_data.min(), image_data.max()))
-        LOG.debug("Image Shape : ", image_data.shape)
+        #LOG.debug("Image Shape : ", image_data.shape)
 
     except :
 
@@ -119,7 +121,7 @@ def find_files(dirname: str, base_output_dir:os.PathLike, extension:str="fits") 
 
 
 
-def process_files(output_path:str, files:list, overwrite:bool=False):
+def process_files(output_path:str, files:list, overwrite:bool=False, take_log:bool=False):
     """
     Process files to extract images and create PNG with each file image
     in a layer.
@@ -130,7 +132,7 @@ def process_files(output_path:str, files:list, overwrite:bool=False):
     # use the first difference image as the output filename
     total_success = True
     for f in files:
-        img_data = get_numpy_data(f)
+        img_data = get_numpy_data(f, take_log)
         out_filename = create_output_filename(f)
         if not create_png(img_data, outdir=output_path, fileout=out_filename, overwrite=overwrite):
             # one of the files (or more) failed, mark 'total success' as false
@@ -139,7 +141,7 @@ def process_files(output_path:str, files:list, overwrite:bool=False):
     return 1 if total_success else 0
 
 
-def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, overwrite:bool=False, file_limit:int=None)->list:
+def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, overwrite:bool=False, file_limit:int=None, take_log:bool=False)->list:
     """
     Create a list of jobs to process fits files to png.
     """
@@ -149,7 +151,7 @@ def create_jobs (files_to_process:dict, num_of_threads:int=DEF_NUM_THREADS, over
 
         # process the first 3 files in list
         LOG.debug(f" Files to process:{flist} out:{output_path}")
-        dask_processing_list.append(delayed(process_files)(output_path, flist, overwrite))
+        dask_processing_list.append(delayed(process_files)(output_path, flist, overwrite, take_log))
 
     return dask_processing_list
 
@@ -163,6 +165,8 @@ if __name__ == '__main__':
     ap.add_argument('-d', '--debug', default=False, action='store_true', help='Turn on debugging messages')
     ap.add_argument('-t', '--num_threads', type=int, help=f'Number of threads to use. Default:{DEF_NUM_THREADS}',
                     default=DEF_NUM_THREADS)
+    ap.add_argument('-l', '--take_log', default=False, action='store_true',
+                    help='Take the log of the image.')
     ap.add_argument('-ow', '--overwrite', default=False, action='store_true',
                     help='Overwrite existing data locally with new files.')
     ap.add_argument('-i', '--input_dir', help='Directory/path to input data from')
@@ -192,7 +196,7 @@ if __name__ == '__main__':
     #print(client)
 
     # assemble the dask jobs
-    process_list = create_jobs (found_files_to_process, args.num_threads, args.overwrite)
+    process_list = create_jobs (found_files_to_process, args.num_threads, args.overwrite, args.take_log)
     if len(process_list) > 0:
         process_list_sum = sum(process_list)
         process_list_sum.compute()
